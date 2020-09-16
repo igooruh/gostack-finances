@@ -1,12 +1,14 @@
+// import AppError from '../errors/AppError';
+
 import { getCustomRepository, getRepository } from 'typeorm';
 
-import AppError from '../errors/AppError';
+import TransactionsRepositories from '../repositories/TransactionsRepository';
 
 import Transaction from '../models/Transaction';
 import Category from '../models/Category';
-import TransactionRepository from '../repositories/TransactionsRepository';
+import AppError from '../errors/AppError';
 
-interface Request {
+interface RequestTDO {
   title: string;
   value: number;
   type: 'income' | 'outcome';
@@ -19,20 +21,21 @@ class CreateTransactionService {
     value,
     type,
     category,
-  }: Request): Promise<Transaction> {
-    const transactionRepository = getCustomRepository(TransactionRepository);
-    const categoryRepository = getRepository(Category);
+  }: RequestTDO): Promise<Transaction> {
+    const transactionsRepository = getCustomRepository(
+      TransactionsRepositories,
+    );
 
-    const { total } = await transactionRepository.getBalance();
+    const { total } = await transactionsRepository.getBalance();
 
     if (type === 'outcome' && total < value) {
-      throw new AppError('You do not have enough balance');
+      throw new AppError('You need some money!');
     }
 
+    const categoryRepository = getRepository(Category);
+
     let transactionCategory = await categoryRepository.findOne({
-      where: {
-        title: category,
-      },
+      where: { title: category },
     });
 
     if (!transactionCategory) {
@@ -40,17 +43,17 @@ class CreateTransactionService {
         title: category,
       });
 
-      await transactionRepository.save(transactionCategory);
+      await categoryRepository.save(transactionCategory);
     }
 
-    const transaction = transactionRepository.create({
+    const transaction = transactionsRepository.create({
       title,
       value,
       type,
       category: transactionCategory,
     });
 
-    await transactionRepository.save(transaction);
+    await transactionsRepository.save(transaction);
 
     return transaction;
   }
